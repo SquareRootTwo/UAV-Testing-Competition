@@ -1,2 +1,5 @@
 ### include any additional libraries used in your code here
 ### do not include aerialist, it is already installed in the Dockerimage
+scipy==1.10.0
+PuLP==2.9.0
+matplotlib==3.7.5
