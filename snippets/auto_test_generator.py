@@ -76,7 +76,7 @@ class SearchBasedGenerator(object):
                     ls = ['-', '-.', ':']
                     thickness = [1, 4, 5]
 
-                    plt.plot(vor_x, vor_y, 'ro', color='red')
+                    plt.plot(vor_x, vor_y, color='red')
                     
                     # area plot
                     plt.plot(
@@ -192,14 +192,14 @@ class SearchBasedGenerator(object):
                             pt2_x = -1000
                             pt2_y = vor_y - slope1 * (vor_x - pt2_x)
 
-                            plt.plot([pt1_x, pt2_x], [pt1_y, pt2_y], color=c, linestyle=ls[i], alpha=0.5, lw=thickness[i])
+                            plt.plot([pt1_x, pt2_x], [pt1_y, pt2_y], color="red", alpha=0.5)
 
                             pt1_x = 1000
                             pt1_y = vor_y - slope2 * (vor_x - pt1_x)
                             pt2_x = -1000
                             pt2_y = vor_y - slope2 * (vor_x - pt2_x)
 
-                            plt.plot([pt1_x, pt2_x], [pt1_y, pt2_y], color=c, linestyle=ls[i], alpha=0.5, lw=thickness[i])
+                            plt.plot([pt1_x, pt2_x], [pt1_y, pt2_y], color="red", alpha=0.5)
                         
                         center = Obstacle.Position(
                             x=(sol_x1 + sol_x2) / 2, 
@@ -220,6 +220,8 @@ class SearchBasedGenerator(object):
                         continue
 
                 if DEBUD:
+                    plt.xlim(self.min_position.x - 5, self.max_position.x + 5)
+                    plt.ylim(self.min_position.y - 5, self.max_position.y + 5)
                     plt.savefig(f"/src/generator/results/{i}_{li}_obstacle_placement.png")
 
                 try:
