@@ -4,7 +4,7 @@ from aerialist.px4.drone_test import DroneTest
 from aerialist.px4.obstacle import Obstacle
 from testcase import TestCase
 from pulp import *
-from scipy.spatial import Voronoi
+from scipy.spatial import Voronoi, voronoi_plot_2d
 import numpy as np
 
 DEBUD = True
@@ -186,20 +186,22 @@ class SearchBasedGenerator(object):
                             # plot voronoi center
                             plt.plot([sol_x1, sol_x2, sol_x2, sol_x1, sol_x1], [sol_y1, sol_y1, sol_y2, sol_y2, sol_y1], color="red")
 
+                            voronoi_plot_2d(vor, ax=ax)
+
                             # plot voronoi edges
                             pt1_x = 1000
                             pt1_y = vor_y - slope1 * (vor_x - pt1_x)
                             pt2_x = -1000
                             pt2_y = vor_y - slope1 * (vor_x - pt2_x)
 
-                            plt.plot([pt1_x, pt2_x], [pt1_y, pt2_y], color="red", alpha=0.5)
+                            # plt.plot([pt1_x, pt2_x], [pt1_y, pt2_y], color="red", alpha=0.5)
 
                             pt1_x = 1000
                             pt1_y = vor_y - slope2 * (vor_x - pt1_x)
                             pt2_x = -1000
                             pt2_y = vor_y - slope2 * (vor_x - pt2_x)
 
-                            plt.plot([pt1_x, pt2_x], [pt1_y, pt2_y], color="red", alpha=0.5)
+                            # plt.plot([pt1_x, pt2_x], [pt1_y, pt2_y], color="red", alpha=0.5)
                         
                         center = Obstacle.Position(
                             x=(sol_x1 + sol_x2) / 2, 
