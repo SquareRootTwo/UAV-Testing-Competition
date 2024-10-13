@@ -37,8 +37,8 @@ class SearchBasedGenerator(object):
     def generate(self, budget: int) -> List[TestCase]:
         test_cases = []
 
-        local_budget = 5
-        margin = 2.5
+        local_budget = 3
+        margin = 2.5 # path of width sqrt(3) * margin is guaranteed to be free of obstacles 
 
         # simplify rotation to fit into margin 
         # when rotating a rectangle -> theta is angle of an isosceles triangle
@@ -66,215 +66,221 @@ class SearchBasedGenerator(object):
             #       ->  convex LP problem with size constraints, aspect ratio constraints, 
             #           slope constraints and region boundary constraints
 
+            # checks if the points are more or less on the same line 
+            while True:
+                points = np.array([
+                    [random.uniform(self.min_position.x, self.max_position.x), random.uniform(self.min_position.y, self.max_position.y)],
+                    [random.uniform(self.min_position.x, self.max_position.x), random.uniform(self.min_position.y, self.max_position.y)],
+                    [random.uniform(self.min_position.x, self.max_position.x), random.uniform(self.min_position.y, self.max_position.y)]
+                ])
+
+                cov = np.cov(points.T)
+                eigvals, eigvecs = np.linalg.eig(cov)
+
+                ratio = max(eigvals) / min(eigvals)
+
+                if ratio < 4:
+                    break
+
+            vor = Voronoi(points)
+            # since we only sample 3 points, we have always 1 vertex
+            vor_center = vor.vertices[0]
+            vor_x, vor_y = vor_center
+
+            slopes = {0: [], 1: [], 2: []}
+
+            if DEBUD:
+                import matplotlib.pyplot as plt
+                plt.clf()
+                fig, ax = plt.subplots()
+                
+                # line styles
+                colors = ['blue', 'orange', 'purple']
+                ls = ['-', '-.', ':']
+                thickness = [1, 4, 5]
+
+                plt.plot(vor_x, vor_y, color='red')
+                
+                # area plot
+                plt.plot(
+                    [self.min_position.x, self.max_position.x, self.max_position.x, self.min_position.x, self.min_position.x], 
+                    [self.min_position.y, self.min_position.y, self.max_position.y, self.max_position.y, self.min_position.y], 
+                    lw=2, 
+                    color='red'
+                )
+                plt.scatter(points[:, 0], points[:, 1], color=colors)
+
+
+            for pointidx, simplex in zip(vor.ridge_points, vor.ridge_vertices):
+                simplex = np.asarray(simplex)
+                # infinite ridge -> compute finite end of the ridge
+                i = simplex[simplex >= 0][0]
+
+                # direction of the ridge
+                t = points[pointidx[1]] - points[pointidx[0]]  
+                t = t / np.linalg.norm(t)
+                n = np.array([-t[1], t[0]])
+
+                # far_point = vor.vertices[i] + n * predefined_length
+                
+                slope = n[1] / n[0]
+
+                pts1_idx = pointidx[0]
+                pts2_idx = pointidx[1]
+
+                slopes[pts1_idx].append(slope)
+                slopes[pts2_idx].append(slope)
+            
             search_space = []
 
-            local_b_i = 0
-            while local_b_i < local_budget:
-                # checks if the points are more or less on the same line 
-                while True:
-                    points = np.array([
-                        [random.uniform(self.min_position.x, self.max_position.x), random.uniform(self.min_position.y, self.max_position.y)],
-                        [random.uniform(self.min_position.x, self.max_position.x), random.uniform(self.min_position.y, self.max_position.y)],
-                        [random.uniform(self.min_position.x, self.max_position.x), random.uniform(self.min_position.y, self.max_position.y)]
-                    ])
+            for s_i in slopes.keys():
 
-                    cov = np.cov(points.T)
-                    eigvals, eigvecs = np.linalg.eig(cov)
+                point = points[s_i]
+                slope1, slope2 = slopes[s_i]
 
-                    ratio = max(eigvals) / min(eigvals)
-
-                    if ratio < 4:
-                        break
-
-                vor = Voronoi(points)
-                # since we only sample 3 points, we have always 1 vertex
-                vor_center = vor.vertices[0]
-                vor_x, vor_y = vor_center
-
-                slopes = {0: [], 1: [], 2: []}
-
-                if DEBUD:
-                    import matplotlib.pyplot as plt
-                    plt.clf()
-                    fig, ax = plt.subplots()
-                    
-                    # line styles
-                    colors = ['blue', 'orange', 'purple']
-                    ls = ['-', '-.', ':']
-                    thickness = [1, 4, 5]
-
-                    plt.plot(vor_x, vor_y, color='red')
-                    
-                    # area plot
-                    plt.plot(
-                        [self.min_position.x, self.max_position.x, self.max_position.x, self.min_position.x, self.min_position.x], 
-                        [self.min_position.y, self.min_position.y, self.max_position.y, self.max_position.y, self.min_position.y], 
-                        lw=2, 
-                        color='red'
-                    )
-                    plt.scatter(points[:, 0], points[:, 1], color=colors)
-
-
-                for pointidx, simplex in zip(vor.ridge_points, vor.ridge_vertices):
-                    simplex = np.asarray(simplex)
-                    # infinite ridge -> compute finite end of the ridge
-                    i = simplex[simplex >= 0][0]
-
-                    # direction of the ridge
-                    t = points[pointidx[1]] - points[pointidx[0]]  
-                    t = t / np.linalg.norm(t)
-                    n = np.array([-t[1], t[0]])
-
-                    # far_point = vor.vertices[i] + n * predefined_length
-                    
-                    slope = n[1] / n[0]
-
-                    pts1_idx = pointidx[0]
-                    pts2_idx = pointidx[1]
-
-                    slopes[pts1_idx].append(slope)
-                    slopes[pts2_idx].append(slope)
-                
                 obstacles = []
+                for local_b_i in range(local_budget):
 
+                    # LP problem
+                    prob = LpProblem(f"optimise_rectangle_{s_i}", LpMaximize)
 
-                for s_i in slopes.keys():
-                    best_obstacle = None
-                    best_obstacle_area = 0
+                    # sample aspect ratio
+                    r = random.uniform(0.3, 3)
 
-                    for a_i in range(10):
-                        point = points[s_i]
-                        slope1, slope2 = slopes[s_i]
+                    x1 = LpVariable("x1", lowBound=self.min_position.x + margin, upBound=self.max_position.x - margin)
+                    x2 = LpVariable("x2", lowBound=self.min_position.x + margin, upBound=self.max_position.x - margin)
+                    y1 = LpVariable("y1", lowBound=self.min_position.y + margin, upBound=self.max_position.y - margin)
+                    y2 = LpVariable("y2", lowBound=self.min_position.y + margin, upBound=self.max_position.y - margin)
 
-                        # LP problem
-                        prob = LpProblem(f"optimise_rectangle_{s_i}", LpMaximize)
+                    prob += (x2 - x1), "objective_function"
 
-                        # sample aspect ratio
-                        r = random.uniform(0.3, 3)
+                    # aspect ratio constraint
+                    prob += (x2 - x1) == r * (y2 - y1), "aspect_ratio_constraint"
 
-                        x1 = LpVariable("x1", lowBound=self.min_position.x + margin, upBound=self.max_position.x - margin)
-                        x2 = LpVariable("x2", lowBound=self.min_position.x + margin, upBound=self.max_position.x - margin)
-                        y1 = LpVariable("y1", lowBound=self.min_position.y + margin, upBound=self.max_position.y - margin)
-                        y2 = LpVariable("y2", lowBound=self.min_position.y + margin, upBound=self.max_position.y - margin)
+                    # constraints on rectangle size
+                    prob += (x2 - x1) >= self.min_size.w, "width_x_min_constraint"
+                    prob += (y2 - y1) >= self.min_size.l, "length_y_min_constraint"
+                    prob += (x2 - x1) <= self.max_size.w, "width_x_max_constraint"
+                    prob += (y2 - y1) <= self.max_size.l, "length_y_max_constraint"
 
-                        prob += (x2 - x1), "objective_function"
+                    # slope constraints
+                    # slope1 
+                    # check if the current point is above or below the line thorugh vor_x, vor_y with slope1
+                    slope_vec = np.array([1, slope1])
+                    slope_vec = slope_vec / np.linalg.norm(slope_vec)
 
-                        # aspect ratio constraint
-                        prob += (x2 - x1) == r * (y2 - y1), "aspect_ratio_constraint"
+                    # this is only to get the inequality sign for the constraint (either <= or >=)
+                    to_left = True if np.cross(slope_vec, point - vor_center) > 0 else False
 
-                        # constraints on rectangle size
-                        prob += (x2 - x1) >= self.min_size.w, "width_x_min_constraint"
-                        prob += (y2 - y1) >= self.min_size.l, "length_y_min_constraint"
-                        prob += (x2 - x1) <= self.max_size.w, "width_x_max_constraint"
-                        prob += (y2 - y1) <= self.max_size.l, "length_y_max_constraint"
+                    if to_left:
+                        x_margin = margin if slope1 > 0 else -margin
+                        prob += y1 >= slope1 * (x1 + x_margin - vor_x) + vor_y + margin, "slope_constraint_1"
+                        prob += y1 >= slope1 * (x2 + x_margin - vor_x) + vor_y + margin, "slope_constraint_2"
+                        prob += y2 >= slope1 * (x2 + x_margin - vor_x) + vor_y + margin, "slope_constraint_3"
+                        prob += y2 >= slope1 * (x1 + x_margin - vor_x) + vor_y + margin, "slope_constraint_4"
+                    else:
+                        x_margin = -margin if slope1 > 0 else margin
+                        prob += y1 <= slope1 * (x1 + x_margin - vor_x) + vor_y - margin, "slope_constraint_1"
+                        prob += y1 <= slope1 * (x2 + x_margin - vor_x) + vor_y - margin, "slope_constraint_2"
+                        prob += y2 <= slope1 * (x2 + x_margin - vor_x) + vor_y - margin, "slope_constraint_3"
+                        prob += y2 <= slope1 * (x1 + x_margin - vor_x) + vor_y - margin, "slope_constraint_4"
 
-                        # slope constraints
-                        # slope1 
-                        # check if the current point is above or below the line thorugh vor_x, vor_y with slope1
-                        slope_vec = np.array([1, slope1])
-                        slope_vec = slope_vec / np.linalg.norm(slope_vec)
+                    # slope2
+                    # check if the current point is above or below the line thorugh vor_x, vor_y with slope2
+                    slope_vec = np.array([1, slope2])
+                    slope_vec = slope_vec / np.linalg.norm(slope_vec)
 
-                        # this is only to get the inequality sign for the constraint (either <= or >=)
-                        to_left = True if np.cross(slope_vec, point - vor_center) > 0 else False
+                    # this is only to get the inequality sign for the constraint (either <= or >=)
+                    to_left = True if np.cross(slope_vec, point - vor_center) > 0 else False
 
-                        if to_left:
-                            x_margin = margin if slope1 > 0 else -margin
-                            prob += y1 >= slope1 * (x1 + x_margin - vor_x) + vor_y + margin, "slope_constraint_1"
-                            prob += y1 >= slope1 * (x2 + x_margin - vor_x) + vor_y + margin, "slope_constraint_2"
-                            prob += y2 >= slope1 * (x2 + x_margin - vor_x) + vor_y + margin, "slope_constraint_3"
-                            prob += y2 >= slope1 * (x1 + x_margin - vor_x) + vor_y + margin, "slope_constraint_4"
-                        else:
-                            x_margin = -margin if slope1 > 0 else margin
-                            prob += y1 <= slope1 * (x1 + x_margin - vor_x) + vor_y - margin, "slope_constraint_1"
-                            prob += y1 <= slope1 * (x2 + x_margin - vor_x) + vor_y - margin, "slope_constraint_2"
-                            prob += y2 <= slope1 * (x2 + x_margin - vor_x) + vor_y - margin, "slope_constraint_3"
-                            prob += y2 <= slope1 * (x1 + x_margin - vor_x) + vor_y - margin, "slope_constraint_4"
+                    if to_left:
+                        x_margin = margin if slope2 > 0 else -margin
+                        prob += y1 >= slope2 * (x1 + x_margin - vor_x) + vor_y + margin, "slope_constraint_5"
+                        prob += y1 >= slope2 * (x2 + x_margin - vor_x) + vor_y + margin, "slope_constraint_6"
+                        prob += y2 >= slope2 * (x2 + x_margin - vor_x) + vor_y + margin, "slope_constraint_7"
+                        prob += y2 >= slope2 * (x1 + x_margin - vor_x) + vor_y + margin, "slope_constraint_8"
+                    else:
+                        x_margin = -margin if slope2 > 0 else margin
+                        prob += y1 <= slope2 * (x1 + x_margin - vor_x) + vor_y - margin, "slope_constraint_5"
+                        prob += y1 <= slope2 * (x2 + x_margin - vor_x) + vor_y - margin, "slope_constraint_6"
+                        prob += y2 <= slope2 * (x2 + x_margin - vor_x) + vor_y - margin, "slope_constraint_7"
+                        prob += y2 <= slope2 * (x1 + x_margin - vor_x) + vor_y - margin, "slope_constraint_8"
 
-                        # slope2
-                        # check if the current point is above or below the line thorugh vor_x, vor_y with slope2
-                        slope_vec = np.array([1, slope2])
-                        slope_vec = slope_vec / np.linalg.norm(slope_vec)
+                    try:
+                        prob.solve(PULP_CBC_CMD(msg=False))
+                        sol_x1 = prob.variables()[0].varValue
+                        sol_x2 = prob.variables()[1].varValue
+                        sol_y1 = prob.variables()[2].varValue
+                        sol_y2 = prob.variables()[3].varValue
 
-                        # this is only to get the inequality sign for the constraint (either <= or >=)
-                        to_left = True if np.cross(slope_vec, point - vor_center) > 0 else False
+                        if DEBUD:
+                            # plot voronoi center and ridges
+                            plt.plot([sol_x1, sol_x2, sol_x2, sol_x1, sol_x1], [sol_y1, sol_y1, sol_y2, sol_y2, sol_y1], color="red")
+                            voronoi_plot_2d(vor, ax=ax)
 
-                        if to_left:
-                            x_margin = margin if slope2 > 0 else -margin
-                            prob += y1 >= slope2 * (x1 + x_margin - vor_x) + vor_y + margin, "slope_constraint_5"
-                            prob += y1 >= slope2 * (x2 + x_margin - vor_x) + vor_y + margin, "slope_constraint_6"
-                            prob += y2 >= slope2 * (x2 + x_margin - vor_x) + vor_y + margin, "slope_constraint_7"
-                            prob += y2 >= slope2 * (x1 + x_margin - vor_x) + vor_y + margin, "slope_constraint_8"
-                        else:
-                            x_margin = -margin if slope2 > 0 else margin
-                            prob += y1 <= slope2 * (x1 + x_margin - vor_x) + vor_y - margin, "slope_constraint_5"
-                            prob += y1 <= slope2 * (x2 + x_margin - vor_x) + vor_y - margin, "slope_constraint_6"
-                            prob += y2 <= slope2 * (x2 + x_margin - vor_x) + vor_y - margin, "slope_constraint_7"
-                            prob += y2 <= slope2 * (x1 + x_margin - vor_x) + vor_y - margin, "slope_constraint_8"
+                        area = (sol_x2 - sol_x1) * (sol_y2 - sol_y1)
+                           
+                        center = Obstacle.Position(
+                            x=(sol_x1 + sol_x2) / 2, 
+                            y=(sol_y1 + sol_y2) / 2, 
+                            z=0, 
+                            r=random.uniform(0.0, max_theta),
+                            # this is the downside of the LP approach, we do not have a rotation
+                        )
+                        size = Obstacle.Size(
+                            l=sol_x2 - sol_x1, 
+                            w=sol_y2 - sol_y1,
+                            h=random.uniform(self.min_size.h, self.max_size.h),
+                        )
 
-                        try:
-                            prob.solve(PULP_CBC_CMD(msg=False))
-                            sol_x1 = prob.variables()[0].varValue
-                            sol_x2 = prob.variables()[1].varValue
-                            sol_y1 = prob.variables()[2].varValue
-                            sol_y2 = prob.variables()[3].varValue
+                        curr_obstacle = Obstacle(size, center)
 
-                            if DEBUD:
-                                # plot voronoi center
-                                plt.plot([sol_x1, sol_x2, sol_x2, sol_x1, sol_x1], [sol_y1, sol_y1, sol_y2, sol_y2, sol_y1], color="red")
+                        obstacles.append((curr_obstacle, area, sol_x1, sol_x2, sol_y1, sol_y2))
 
-                                voronoi_plot_2d(vor, ax=ax)
+                    except:
+                        print("Exception during LP solving, skipping the test")
+                        continue
 
-                                # plot voronoi edges
-                                # pt1_x = 1000
-                                # pt1_y = vor_y - slope1 * (vor_x - pt1_x)
-                                # pt2_x = -1000
-                                # pt2_y = vor_y - slope1 * (vor_x - pt2_x)
+                # obstacles.shape: (local_budget, 6) -> 6: (obstacle, area, x1, x2, y1, y2)
+                search_space.append(obstacles)
 
-                                # plt.plot([pt1_x, pt2_x], [pt1_y, pt2_y], color="red", alpha=0.5)
+            # now we have 3 * local_budget obstacles to search for the best placement
 
-                                # pt1_x = 1000
-                                # pt1_y = vor_y - slope2 * (vor_x - pt1_x)
-                                # pt2_x = -1000
-                                # pt2_y = vor_y - slope2 * (vor_x - pt2_x)
+            if DEBUD:
+                plt.xlim(self.min_position.x - 5, self.max_position.x + 5)
+                plt.ylim(self.min_position.y - 5, self.max_position.y + 5)
+                plt.savefig(f"/src/generator/results/{b_i}_obstacle_search_space.png", dpi=300)
 
-                                # plt.plot([pt1_x, pt2_x], [pt1_y, pt2_y], color="red", alpha=0.5)
+            nr_obstacles_to_place = np.random.choice([1, 2, 3], 1, p=[0.1, 0.3, 0.6])[0]
+            
+            # search_space.shape: (nr_obstacles_to_place, local_budget, 6) 
+            sampled_search_space = random.sample(search_space, nr_obstacles_to_place)
 
-                            area = (sol_x2 - sol_x1) * (sol_y2 - sol_y1)
+            # sort search space by x1 index -> use later for binary search
+            for i in range(nr_obstacles_to_place):
+                sampled_search_space[i].sort(key=lambda x: x[2])
 
-                            if area > best_obstacle_area:
-                                best_obstacle_area = area                            
-                                center = Obstacle.Position(
-                                    x=(sol_x1 + sol_x2) / 2, 
-                                    y=(sol_y1 + sol_y2) / 2, 
-                                    z=0, 
-                                    r=random.uniform(0.0, max_theta),
-                                    # this is the downside of the LP approach, we do not have a rotation
-                                )
-                                size = Obstacle.Size(
-                                    l=sol_x2 - sol_x1, 
-                                    w=sol_y2 - sol_y1,
-                                    h=random.uniform(self.min_size.h, self.max_size.h),
-                                )
+            # generate all possible combinations of obstacles indices
+            if nr_obstacles_to_place == 1:
+                idx_combinations = list(itertools.product(range(local_budget)))
+            elif nr_obstacles_to_place == 2:
+                idx_combinations = list(itertools.product(range(local_budget), range(local_budget)))
+            elif nr_obstacles_to_place == 3:
+                idx_combinations = list(itertools.product(range(local_budget), range(local_budget), range(local_budget)))
 
-                                best_obstacle = Obstacle(size, center)
+            best_dist = np.inf
+            best_score = 0
+            best_test = None
 
-                        except:
-                            print("Exception during LP solving, skipping the test")
-                            continue
-
-                    obstacles.append(best_obstacle)
-
-                if DEBUD:
-                    plt.xlim(self.min_position.x - 5, self.max_position.x + 5)
-                    plt.ylim(self.min_position.y - 5, self.max_position.y + 5)
-                    plt.savefig(f"/src/generator/results/{b_i}_{local_b_i}_obstacle_placement.png", dpi=300)
+            print(f"Starting search, search_space length: {len(idx_combinations)}, nr_obstacles_to_place: {nr_obstacles_to_place}")
+            
+            for idx_comb in idx_combinations:
+                search_obstacles = []
+                for obj_idx, search_idx in enumerate(idx_comb):
+                    search_obstacles.append(sampled_search_space[obj_idx][search_idx][0])
 
                 try:
-                    nr_obstacles_to_place = np.random.choice([1, 2, 3], 1, p=[0.1, 0.3, 0.6])[0]
-
-                    random_obstcales = random.sample(obstacles, nr_obstacles_to_place)
-
-                    test = TestCase(self.case_study, random_obstcales)
+                    test = TestCase(self.case_study, search_obstacles)
 
                     signal.signal(signal.SIGALRM, timeout_handler)
 
@@ -291,29 +297,32 @@ class SearchBasedGenerator(object):
                     min_dist = min(distances)
                     score = score_test(min_dist)
 
-                    print(f"minimum_distance:{min_dist}, score: {score}")
+                    print(f"local search minimum_distance:{min_dist}, score: {score}")
 
-                    # TODO: only return soft and hard fail test cases
-                    # hard fail: min_dist == 0
-                    # soft fail: min_dist < 1.5
-
-                    test.plot()
-                    search_space.append((test, score, nr_obstacles_to_place))
-
-                    local_b_i += 1
+                    if min_dist < best_dist:
+                        best_dist = min_dist
+                        best_score = score
+                        best_test = test
 
                 except Exception as e:
                     print("Exception during test execution, skipping the test")
                     print(e)
+                
+            print(f"best result minimum_distance:{min_dist}, score: {score}")
 
-            # rank the test cases based on the score and return the best one
-            search_space.sort(key=lambda x: x[1], reverse=True)
-            test_cases.append(search_space[0][0])
+            best_test.plot()
+            test_cases.append((best_test, best_score, nr_obstacles_to_place))
+
+            # TODO: only return soft and hard fail test cases
+            # hard fail: min_dist == 0
+            # soft fail: min_dist < 1.5
 
         ### You should only return the test cases
         ### that are needed for evaluation (failing or challenging ones)
+        test_cases.sort(key=lambda x: x[1], reverse=True)
+        test_cases_extracted = [x[0] for x in test_cases]
 
-        return test_cases
+        return test_cases_extracted
 
 
 if __name__ == "__main__":
