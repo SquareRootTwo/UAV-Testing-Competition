@@ -37,7 +37,7 @@ class SearchBasedGenerator(object):
     def generate(self, budget: int) -> List[TestCase]:
         test_cases = []
 
-        local_budget = 3
+        local_budget = 5
         margin = 2.5 # path of width sqrt(3) * margin is guaranteed to be free of obstacles 
 
         # simplify rotation to fit into margin 
@@ -251,7 +251,7 @@ class SearchBasedGenerator(object):
                 plt.ylim(self.min_position.y - 5, self.max_position.y + 5)
                 plt.savefig(f"/src/generator/results/{b_i}_obstacle_search_space.png", dpi=300)
 
-            nr_obstacles_to_place = np.random.choice([1, 2, 3], 1, p=[0.1, 0.3, 0.6])[0]
+            nr_obstacles_to_place = np.random.choice([1, 2, 3], 1, p=[0.1, 0.2, 0.7])[0]
             
             # search_space.shape: (nr_obstacles_to_place, local_budget, 6) 
             sampled_search_space = random.sample(search_space, nr_obstacles_to_place)
@@ -296,6 +296,8 @@ class SearchBasedGenerator(object):
                     distances = test.get_distances()
                     min_dist = min(distances)
                     score = score_test(min_dist)
+
+                    test.plot()
 
                     print(f"local search minimum_distance:{min_dist}, score: {score}")
 
