@@ -90,7 +90,7 @@ for i in slopes.keys():
     point = points[i]
     c = colors[i]
 
-    for _ in range(30):
+    for _ in range(1):
         if print_slopes:
             print(slope1, slope2)
             voronoi_plot_2d(vor, ax=ax)

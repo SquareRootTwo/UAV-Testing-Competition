@@ -37,8 +37,8 @@ class SearchBasedGenerator(object):
     def generate(self, budget: int) -> List[TestCase]:
         test_cases = []
 
-        local_budget = 5
-        margin = 2.5 # path of width sqrt(3) * margin is guaranteed to be free of obstacles 
+        local_budget = 5 # 5, 25 or 125 simulations per search, depends on number of obstacles to place
+        margin = 2 # path of width sqrt(3) * margin is guaranteed to be free of obstacles 
 
         # simplify rotation to fit into margin 
         # when rotating a rectangle -> theta is angle of an isosceles triangle
@@ -51,8 +51,8 @@ class SearchBasedGenerator(object):
         max_theta = np.degrees(max_theta)
 
         print(f"max_theta: {max_theta}")
-
-        for b_i in range(budget):
+        b_i = 0
+        while budget - 125 >= 0:
             # parameter type: float
             # parametesrs:          l, w, h, x, y, r
             # parametesrs range:    18,18,10,45,45,90
@@ -290,6 +290,8 @@ class SearchBasedGenerator(object):
 
                     test.execute()
 
+                    budget -= 1
+
                     # reset the alarm
                     signal.alarm(0)
 
@@ -314,6 +316,8 @@ class SearchBasedGenerator(object):
 
             best_test.plot()
             test_cases.append((best_test, best_score, nr_obstacles_to_place))
+
+            b_i += 1
 
             # TODO: only return soft and hard fail test cases
             # hard fail: min_dist == 0
