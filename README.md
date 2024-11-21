@@ -18,6 +18,19 @@ docker run -v ./results:/src/generator/results/ -it --rm uav_test:v1.0
 python3 cli.py generate case_studies/mission3.yaml 1000
 ```
 
+The test case generator script can be found under ´./snippets/auto_test_generator.py´.
+
+## Example run
+
+The image below shows one critical test case with a min distance of 1.07m for the mission3.yaml file.
+
+<p align="center"><img src="snippets/test_case_example.png" alt="sample test plot" width="60%"/></p>
+
+## Author of the Test Case Generator
+
+Spieler, Jonas, mail@spieler.io
+
+
 # UAV Testing Competition
 
 Unmanned Aerial Vehicles (UAVs) equipped with onboard cameras and various sensors have already demonstrated the possibility of autonomous flights in real environments, leading to great interest in various application scenarios: crop monitoring, surveillance, medical and food delivery.
