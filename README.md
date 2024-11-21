@@ -1,9 +1,9 @@
 
 # Approach
 
-The idea of this test case generator is to reduce our search space by limiting each search to a local placement strategy of the obstacles. This is done by separating the whole area randomly into 3 convex polygons that each represents potential locations for one of the obstacles. A linear program is used to maximise the rectangle area inside its allowed space. This way we can guarantee that the obstacles do not overlap and with some additional constraints to the LP, we can guarantee that there is always a path through the scene. 
+The idea of this test case generator is to reduce our search space by limiting each search to a local placement strategy of the obstacles. This is done by randomly dividing the area into 3 convex polygons, each representing a potential obstacle location. A linear program is used to maximise the obstacle area inside its allowed space by fixing the aspect ratio of the width and depth. This way we can guarantee that the obstacles do not overlap, take the maximum allowed space and with some added margin constraints, we can guarantee that there is always a path through the scene. 
 
-For each obstacle we sample many distinct placement locations inside its polygon that maximise its area taken. Finally we search among all possible combinations of those three obstacles and return the most critical test case.
+For each obstacle we sample local_budget many distinct placement locations (by changing the aspect ratio) inside its polygon that maximise its area taken. Finally we search among all possible combinations of those three obstacles and return the most critical test case.
 
 ## How to run
 
