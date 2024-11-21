@@ -1,5 +1,5 @@
 
-# Approach
+# Test Case Generator Approach
 
 The idea of this test case generator is to reduce our search space by limiting each search to a local placement strategy of the obstacles. This is done by randomly dividing the area into 3 convex polygons, each representing a potential obstacle location. A linear program is used to maximise the obstacle area inside its allowed space by fixing the aspect ratio of the width and depth. This way we can guarantee that the obstacles do not overlap, take the maximum allowed space and with some added margin constraints, we can guarantee that there is always a path through the scene. 
 
@@ -20,7 +20,7 @@ python3 cli.py generate case_studies/mission3.yaml 1000
 
 The test case generator script can be found under ´./snippets/auto_test_generator.py´.
 
-## Example run
+## Example
 
 The image below shows one critical test case with a min distance of 1.07m for the mission3.yaml file.
 
