@@ -325,34 +325,11 @@ class SearchBasedGenerator(object):
 
             if best_score > 0:
                 best_test.plot()
-                test_cases.append((best_test, best_score, nr_obstacles_to_place, f"./results/generated_{b_i}"))
-
-                os.makedirs(f"./results/generated_{b_i}", exist_ok=True)
-                
-                best_test.save_yaml(f"./results/generated_{b_i}/mission.yaml")
-                
-                for filename in os.listdir("./results/"):
-                    # Only move files with a .png or .ulg extension
-                    try:
-                        if filename.lower().endswith('.png'):
-                            test_name = filename.split(".")[0]
-                            os.rename(f"./results/{filename}", f"./results/generated_{b_i}/{filename}")
-                            os.rename(f"./results/{test_name}.ulg", f"./results/generated_{b_i}/{test_name}.ulg")
-                    except:
-                        pass
-            
-            # delete all other files (.ulg from test that were not chosen)
-            for item in os.listdir("./results/"):
-                item_path = os.path.join("./results/", item)
-                if os.path.isfile(item_path):
-                    os.remove(item_path)
+                test_cases.append((best_test, best_score, nr_obstacles_to_place, f"./results/generated-{b_i}"))
 
             b_i += 1
 
         test_cases.sort(key=lambda x: x[1], reverse=True)
-        for x in test_cases:
-            print(f"Test Score: {x[1]}, location: {x[3]}")
-
         test_cases_extracted = [x[0] for x in test_cases]
 
         return test_cases_extracted
