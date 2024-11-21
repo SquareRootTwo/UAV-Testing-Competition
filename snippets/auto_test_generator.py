@@ -9,7 +9,7 @@ import numpy as np
 import threading
 import signal
 
-DEBUD = True
+DEBUG = False
 
 def score_test(dist: float):
     if dist < 0.25: 
@@ -37,8 +37,12 @@ class SearchBasedGenerator(object):
     def generate(self, budget: int) -> List[TestCase]:
         test_cases = []
 
-        local_budget = 5 # 5, 25 or 125 simulations per search, depends on number of obstacles to place
-        margin = 2 # path of width sqrt(3) * margin is guaranteed to be free of obstacles 
+        local_budget = 3 # 5, 25 or 125 simulations per search, depends on number of obstacles to place
+        # -> currently always places 3 obstacles TODO: implement Voronoi placement for fewer obstacles 
+        margin = 2.0 # path of width sqrt(3) * margin is guaranteed to be free of obstacles
+        min_aspect = 0.3
+        max_aspect = 3
+        aspect_ratio_search_space = np.linspace(min_aspect, max_aspect, local_budget) # search among uniform aspect ratios from [min_aspect, max_aspect]
 
         # simplify rotation to fit into margin 
         # when rotating a rectangle -> theta is angle of an isosceles triangle
@@ -50,9 +54,11 @@ class SearchBasedGenerator(object):
         max_theta = 2*np.arcsin(margin / max_diagonal)
         max_theta = np.degrees(max_theta)
 
-        print(f"max_theta: {max_theta}")
+        if DEBUG:
+            print(f"max_theta: {max_theta}")
+    
         b_i = 0
-        while budget - 125 >= 0:
+        while budget >= local_budget**3:
             # parameter type: float
             # parametesrs:          l, w, h, x, y, r
             # parametesrs range:    18,18,10,45,45,90
@@ -89,7 +95,7 @@ class SearchBasedGenerator(object):
 
             slopes = {0: [], 1: [], 2: []}
 
-            if DEBUD:
+            if DEBUG:
                 import matplotlib.pyplot as plt
                 plt.clf()
                 fig, ax = plt.subplots()
@@ -139,13 +145,15 @@ class SearchBasedGenerator(object):
                 slope1, slope2 = slopes[s_i]
 
                 obstacles = []
+
+
                 for local_b_i in range(local_budget):
 
                     # LP problem
                     prob = LpProblem(f"optimise_rectangle_{s_i}", LpMaximize)
 
-                    # sample aspect ratio
-                    r = random.uniform(0.3, 3)
+                    # get aspect ratio
+                    r = aspect_ratio_search_space[local_b_i]
 
                     x1 = LpVariable("x1", lowBound=self.min_position.x + margin, upBound=self.max_position.x - margin)
                     x2 = LpVariable("x2", lowBound=self.min_position.x + margin, upBound=self.max_position.x - margin)
@@ -213,7 +221,7 @@ class SearchBasedGenerator(object):
                         sol_y1 = prob.variables()[2].varValue
                         sol_y2 = prob.variables()[3].varValue
 
-                        if DEBUD:
+                        if DEBUG:
                             # plot voronoi center and ridges
                             plt.plot([sol_x1, sol_x2, sol_x2, sol_x1, sol_x1], [sol_y1, sol_y1, sol_y2, sol_y2, sol_y1], color="red")
                             voronoi_plot_2d(vor, ax=ax)
@@ -246,13 +254,14 @@ class SearchBasedGenerator(object):
 
             # now we have 3 * local_budget obstacles to search for the best placement
 
-            if DEBUD:
+            if DEBUG:
                 plt.xlim(self.min_position.x - 5, self.max_position.x + 5)
                 plt.ylim(self.min_position.y - 5, self.max_position.y + 5)
-                plt.savefig(f"/src/generator/results/{b_i}_obstacle_search_space.png", dpi=300)
+                plt.savefig(f"./results/{b_i}_obstacle_search_space.jpg", dpi=300)
 
-            nr_obstacles_to_place = np.random.choice([1, 2, 3], 1, p=[0.1, 0.2, 0.7])[0]
-            
+            # nr_obstacles_to_place = np.random.choice([1, 2, 3], 1, p=[0.1, 0.2, 0.7])[0]
+            nr_obstacles_to_place = 3
+
             # search_space.shape: (nr_obstacles_to_place, local_budget, 6) 
             sampled_search_space = random.sample(search_space, nr_obstacles_to_place)
 
@@ -271,8 +280,9 @@ class SearchBasedGenerator(object):
             best_dist = np.inf
             best_score = 0
             best_test = None
-
-            print(f"Starting search, search_space length: {len(idx_combinations)}, nr_obstacles_to_place: {nr_obstacles_to_place}")
+    
+            if DEBUG:
+                print(f"Starting search, search_space length: {len(idx_combinations)}, nr_obstacles_to_place: {nr_obstacles_to_place}")
             
             for idx_comb in idx_combinations:
                 search_obstacles = []
@@ -284,7 +294,7 @@ class SearchBasedGenerator(object):
 
                     signal.signal(signal.SIGALRM, timeout_handler)
 
-                    timeout_duration = 60 * 10
+                    timeout_duration = 60 * 10 # 10 min timeout
 
                     signal.alarm(timeout_duration)
 
@@ -299,9 +309,8 @@ class SearchBasedGenerator(object):
                     min_dist = min(distances)
                     score = score_test(min_dist)
 
-                    test.plot()
-
-                    print(f"local search minimum_distance:{min_dist}, score: {score}")
+                    if DEBUG:
+                        print(f"local search minimum_distance: {min_dist}, score: {score}")
 
                     if min_dist < best_dist:
                         best_dist = min_dist
@@ -312,25 +321,40 @@ class SearchBasedGenerator(object):
                     print("Exception during test execution, skipping the test")
                     print(e)
                 
-            print(f"best result minimum_distance:{min_dist}, score: {score}")
+            print(f"minimum_distance: {min_dist}, score: {score}")
 
-            best_test.plot()
-            test_cases.append((best_test, best_score, nr_obstacles_to_place))
+            if best_score > 0:
+                best_test.plot()
+                test_cases.append((best_test, best_score, nr_obstacles_to_place, f"./results/generated_{b_i}"))
+
+                os.makedirs(f"./results/generated_{b_i}", exist_ok=True)
+                
+                best_test.save_yaml(f"./results/generated_{b_i}/mission.yaml")
+                
+                for filename in os.listdir("./results/"):
+                    # Only move files with a .png or .ulg extension
+                    if filename.lower().endswith('.png'):
+                        test_name = filename.split(".")[0]
+                        os.rename(f"./results/{filename}", f"./results/generated_{b_i}/{filename}")
+                        os.rename(f"./results/{test_name}.ulg", f"./results/generated_{b_i}/{test_name}.ulg")
+            
+            # delete all other files (.ulg from test that were not chosen)
+            for item in os.listdir("./results/"):
+                item_path = os.path.join("./results/", item)
+                if os.path.isfile(item_path):
+                    os.remove(item_path)
 
             b_i += 1
 
-            # TODO: only return soft and hard fail test cases
-            # hard fail: min_dist == 0
-            # soft fail: min_dist < 1.5
-
-        ### You should only return the test cases
-        ### that are needed for evaluation (failing or challenging ones)
         test_cases.sort(key=lambda x: x[1], reverse=True)
+        for x in test_cases:
+            print(f"Test Score: {x[1]}, location: {x[3]}")
+
         test_cases_extracted = [x[0] for x in test_cases]
 
         return test_cases_extracted
 
 
 if __name__ == "__main__":
-    generator = RandomGenerator("case_studies/mission1.yaml")
-    generator.generate(3)
+    generator = SearchBasedGenerator("case_studies/mission3.yaml")
+    generator.generate(125)

@@ -1,3 +1,23 @@
+
+# Approach
+
+The idea of this test case generator is to reduce our search space by limiting each search to a local placement strategy of the obstacles. This is done by separating the whole area randomly into 3 convex polygons that each represents potential locations for one of the obstacles. A linear program is used to maximise the rectangle area inside its allowed space. This way we can guarantee that the obstacles do not overlap and with some additional constraints to the LP, we can guarantee that there is always a path through the scene. 
+
+For each obstacle we sample many distinct placement locations inside its polygon that maximise its area taken. Finally we search among all possible combinations of those three obstacles and return the most critical test case.
+
+## How to run
+
+The budget needs to be larger than 27 (local_budget**3) since each search uses this many simulations.
+
+Run: 
+```
+cd snippets/
+docker build -t uav_test:v1.0 .
+docker run -v ./results:/src/generator/results/ -it --rm uav_test:v1.0
+
+python3 cli.py generate case_studies/mission3.yaml 1000
+```
+
 # UAV Testing Competition
 
 Unmanned Aerial Vehicles (UAVs) equipped with onboard cameras and various sensors have already demonstrated the possibility of autonomous flights in real environments, leading to great interest in various application scenarios: crop monitoring, surveillance, medical and food delivery.
