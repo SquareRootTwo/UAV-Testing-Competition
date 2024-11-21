@@ -333,10 +333,13 @@ class SearchBasedGenerator(object):
                 
                 for filename in os.listdir("./results/"):
                     # Only move files with a .png or .ulg extension
-                    if filename.lower().endswith('.png'):
-                        test_name = filename.split(".")[0]
-                        os.rename(f"./results/{filename}", f"./results/generated_{b_i}/{filename}")
-                        os.rename(f"./results/{test_name}.ulg", f"./results/generated_{b_i}/{test_name}.ulg")
+                    try:
+                        if filename.lower().endswith('.png'):
+                            test_name = filename.split(".")[0]
+                            os.rename(f"./results/{filename}", f"./results/generated_{b_i}/{filename}")
+                            os.rename(f"./results/{test_name}.ulg", f"./results/generated_{b_i}/{test_name}.ulg")
+                    except:
+                        pass
             
             # delete all other files (.ulg from test that were not chosen)
             for item in os.listdir("./results/"):
